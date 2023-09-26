@@ -128,7 +128,7 @@ async def handle_poll_answer(poll_answer):
         user_ln = poll_answer.user.last_name
         if user_ln == "None":
             user_ln = NO_NAME
-        parse_fn = user_fn.text.split(' ')
+        parse_fn = user_fn.split(' ')
         # If user has more than one first name registered, only keep the first "first name"
         # So if user_fn = "John William", only "John" is saved
         if len(parse_fn) > 1:
