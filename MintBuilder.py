@@ -13,7 +13,7 @@ with open("config.txt", 'r') as file:
     frst_line = file.readline()
     scnd_line = file.readline()
     thrd_line = file.readline()
-    # Keys : chat_id, Values : (poll_id, message_id)
+    # Keys : chat_id, Values : (poll_id, message_id, max_participants)
     polls = eval(frst_line)
     # Keys : poll_id, Values : [(participant_first_name, participant_last_name)]
     participants_per_poll = eval(scnd_line)
@@ -100,11 +100,24 @@ async def welcome(message: types.Message):
 async def create_poll(message: types.Message):
     command_log("poll")
     id_chat = message.chat.id
+    max_participants = WARNING_THRESHOLD
     # Remove old poll if any
     if id_chat in polls:
         old_poll = polls[id_chat]
         await bot.stop_poll(chat_id=id_chat, message_id=old_poll[1])
         participants_per_poll.pop(old_poll[0])
+        max_participants = old_poll[2]
+
+    # Set the number of places available if a value is entered
+    parse_text = message.text.split(' ')
+    if len(parse_text) > 2:
+        val = parse_text[1]
+        try:
+            val = int(val)
+        except ValueError:
+            print("Not an integer for max_participants")
+        else:
+            max_participants = val
 
     # Create new poll
     poll = await bot.send_poll(
@@ -114,7 +127,7 @@ async def create_poll(message: types.Message):
         is_anonymous=False)
     # Save IDs of the poll and the chat
     id_poll = poll.poll.id
-    polls[id_chat] = (id_poll, poll.message_id)
+    polls[id_chat] = (id_poll, poll.message_id, max_participants)
     participants_per_poll[id_poll] = []
 
 
@@ -137,13 +150,14 @@ async def handle_poll_answer(poll_answer):
         # If first option is chosen (meaning the user is coming)
         if option == [0]:
             participants_per_poll[id_poll].append((user_fn, user_ln))
-            # Warning if the threshold is reach (usually 12)
-            if len(participants_per_poll[id_poll]) == WARNING_THRESHOLD:
-                for id_chat in [id for id in polls.keys() if polls[id][0] == id_poll]:
+            # Warning if the number of places available is reach or exceeded
+            for id_chat in [id for id in polls.keys() if polls[id][0] == id_poll]:
+                if len(participants_per_poll[id_poll]) >= polls[id_chat][2]:
                     await bot.send_message(
                         chat_id=id_chat,
                         reply_to_message_id=polls[id_chat][1],
-                        text="Attention, il y a maintenant {} personnes qui viennent".format(WARNING_THRESHOLD))
+                        text="Attention, il y a maintenant {} personnes qui viennent alors que la limite de places "
+                             "est {}".format(len(participants_per_poll[id_poll]), polls[id_chat][2]))
         # If user retract from coming
         elif option == [] and (user_fn, user_ln) in participants_per_poll[id_poll]:
             participants_per_poll[id_poll].remove((user_fn, user_ln))
@@ -168,11 +182,12 @@ async def add_teammate(message: types.Message):
             if teammate not in participants_per_poll[polls[id_chat][0]]:
                 participants_per_poll[polls[id_chat][0]].append(teammate)
                 # Warning if the threshold is reach (usually 12)
-                if len(participants_per_poll[polls[id_chat][0]]) == WARNING_THRESHOLD:
+                if len(participants_per_poll[polls[id_chat][0]]) >= polls[id_chat][2]:
                     await bot.send_message(
                         chat_id=id_chat,
                         reply_to_message_id=polls[id_chat][1],
-                        text="Attention, il y a maintenant {} personnes qui viennent".format(WARNING_THRESHOLD))
+                        text="Attention, il y a maintenant {} personnes qui viennent alors que la limite de places "
+                             "est {}".format(len(participants_per_poll[polls[id_chat][0]]), polls[id_chat][2]))
             else:
                 await message.reply("{} participe déjà !".format(teammate[0]))
         except KeyError:
@@ -223,7 +238,8 @@ async def participant_list(message: types.Message):
         await message.reply(text="Aucun sondage actif pour voir les participants")
     else:
         participants = ["Il y a actuellement {} personnes qui viennent \U0001F44D \n"
-                        "\n*Liste des participant-e-s*".format(len(participants_per_poll[id_poll]))]
+                        "(La limite de places est {})"
+                        "\n*Liste des participant-e-s*".format(len(participants_per_poll[id_poll]), polls[id_chat][2])]
         if homonym_check(participants_per_poll[id_poll]):
             for i in participants_per_poll[id_poll]:
                 participants.append("- {} {}".format(i[0], i[1]))
@@ -236,6 +252,29 @@ async def participant_list(message: types.Message):
             reply_to_message_id=polls[id_chat][1],
             text=text_to_send,
             parse_mode='Markdown')
+
+
+@dp.message_handler(commands=['max'])
+async def set_max(message: types.Message):
+    command_log("max")
+    id_chat = message.chat.id
+    try:
+        _ = polls[id_chat][0]
+    except KeyError:
+        await message.reply(text="Ce groupe n'a jamais créé de sondage. Veuillez créer un sondage avec la commande /poll avant de choisir le nombre de places disponibles")
+    else:
+        parse_text = message.text.split(' ')
+        if len(parse_text) < 2:
+            await message.reply("Aucune valeur indiquée")
+        else:
+            val = parse_text[1]
+            try:
+                val = int(val)
+            except ValueError:
+                await message.reply(text="La valeur entrée n'est pas un entier")
+            else:
+                polls[id_chat][2] = val
+                await message.reply(text="Le nombre de places disponible est maintenant {}".format(polls[id_chat][2]))
 
 
 @dp.message_handler(commands=['team'])
@@ -298,7 +337,8 @@ async def help_message(message: types.Message):
     command_log('help')
     id_chat = message.chat.id
     text = ["*Voici mes commandes :*", '- /start : Affiche un message d\'introduction',
-            '- /poll : Crée un sondage à 3 réponses dont seule la première est positive',
+            '- /poll <nombre> : Crée un sondage à 3 réponses dont seule la première est positive. '
+            'Si un nombre est indiqué, le nombre de places maximal est fixé à cette valeur.',
             '- /add <nom> : Permet d\'ajouter un-e participant-e au prochain quiz. '
             'À n\'utiliser que si la personne n\'a pas telegram, sinon il est préférable de forwarder le sondage',
             '- /remove <nom> : Permet de retirer un-e participant-e du prochain quiz. '
@@ -306,16 +346,19 @@ async def help_message(message: types.Message):
             'sondage.\n '
             '(Il faut appuyer sur l\'énoncé du sondage puis \"retract vote\")',
             '- /participants : Permet d\'afficher la liste des participant-e-s au prochain quiz',
+            '- /max : Permet de modifier le nombre de places maximales disponibles',
             '- /team <(nom1, nom2)> : Génère aléatoirement des équipes avec maximum 6 membres. '
             'Il est possible de demander que plusieurs personnes soient dans la même équipe '
-            'en les mettant entre parenthèses à la suite de la commande.', '\n*Exemples* :',
+            'en les mettant entre parenthèses à la suite de la commande.',
+            '- /git : provide the link to the [github](https://github.com/Risbobo/MintBuilderPublic)',
+            '\n*Exemples* :',
+            '/poll 18 - Crée un sondage qui avertira à partir de 18 participants que la limite de place est atteinte',
             '/add Alice - Alice (qui n\'a pas telegram) est ajoutée au prochain quiz',
             '/remove Alice - Alice (qui n\'a toujours pas telegram) est retirée du prochain quiz',
             '/team (Alice, Bob) - Alice et Bob seront dans la même équipe.',
             '/team (Alice, Bob, Charlie) - Alice, Bob et Charles seront dans la même équipe.',
             '/team (Alice, Bob) (Charlie, Dave) - '
-            'Alice et Bob seront dans la même équipe et Charlie et Dave seront dans la même équipe.\n'
-            '- /git : provide the link to the github (https://github.com/Risbobo/MintBuilderPublic)']
+            'Alice et Bob seront dans la même équipe et Charlie et Dave seront dans la même équipe.',]
     text_to_send = '\n'.join(text)
     await bot.send_message(chat_id=id_chat, text=text_to_send, parse_mode='Markdown')
 
