@@ -314,7 +314,8 @@ async def help_message(message: types.Message):
             '/team (Alice, Bob) - Alice et Bob seront dans la même équipe.',
             '/team (Alice, Bob, Charlie) - Alice, Bob et Charles seront dans la même équipe.',
             '/team (Alice, Bob) (Charlie, Dave) - '
-            'Alice et Bob seront dans la même équipe et Charlie et Dave seront dans la même équipe.']
+            'Alice et Bob seront dans la même équipe et Charlie et Dave seront dans la même équipe.\n'
+            '- /git : provide the link to the github (https://github.com/Risbobo/MintBuilderPublic)']
     text_to_send = '\n'.join(text)
     await bot.send_message(chat_id=id_chat, text=text_to_send, parse_mode='Markdown')
 
@@ -324,6 +325,14 @@ async def debug(message: types.Message):
     command_log('debug')
     print(polls)
     print(participants_per_poll)
+
+
+@dp.message_handler(commands=['git'])
+async def welcome(message: types.Message):
+    command_log("git")
+    id_chat = message.chat.id
+    text = "[Link to GitHub](https://github.com/Risbobo/MintBuilderPublic)"
+    await bot.send_message(chat_id=id_chat, text=text, parse_mode='Markdown')
 
 
 @dp.message_handler(commands=['save'])
