@@ -273,7 +273,8 @@ async def set_max(message: types.Message):
             except ValueError:
                 await message.reply(text="La valeur entrée n'est pas un entier")
             else:
-                polls[id_chat][2] = val
+                old_tuple = polls[id_chat]
+                polls[id_chat] = (old_tuple[0], old_tuple[1], val)
                 await message.reply(text="Le nombre de places disponible est maintenant {}".format(polls[id_chat][2]))
 
 
