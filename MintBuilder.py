@@ -110,16 +110,13 @@ async def create_poll(message: types.Message):
 
     # Set the number of places available if a value is entered
     parse_text = message.text.split(' ')
-    if len(parse_text) > 2:
+    if len(parse_text) > 1:
         val = parse_text[1]
         try:
-            print(val)
             val = int(val)
-            print(val)
         except ValueError:
             print("Not an integer for max_participants")
         else:
-            print(val)
             max_participants = val
 
     # Create new poll
