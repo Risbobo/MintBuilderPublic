@@ -117,6 +117,7 @@ async def create_poll(message: types.Message):
         except ValueError:
             print("Not an integer for max_participants")
         else:
+            print(val)
             max_participants = val
 
     # Create new poll
@@ -238,7 +239,7 @@ async def participant_list(message: types.Message):
         await message.reply(text="Aucun sondage actif pour voir les participants")
     else:
         participants = ["Il y a actuellement {} personnes qui viennent \U0001F44D \n"
-                        "(La limite de places est {})"
+                        "(La limite de places est {})\n"
                         "\n*Liste des participant-e-s*".format(len(participants_per_poll[id_poll]), polls[id_chat][2])]
         if homonym_check(participants_per_poll[id_poll]):
             for i in participants_per_poll[id_poll]:
