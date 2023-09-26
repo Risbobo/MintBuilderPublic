@@ -113,7 +113,9 @@ async def create_poll(message: types.Message):
     if len(parse_text) > 2:
         val = parse_text[1]
         try:
+            print(val)
             val = int(val)
+            print(val)
         except ValueError:
             print("Not an integer for max_participants")
         else:
